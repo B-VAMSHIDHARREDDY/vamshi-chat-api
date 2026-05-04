@@ -2,6 +2,7 @@ from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import JSONResponse
 from app.routers import chat
+from app.services.scraper_service import warm_cache
 import logging
 
 logging.basicConfig(
@@ -33,6 +34,13 @@ app.add_middleware(
 )
 
 app.include_router(chat.router, prefix="/api/v1", tags=["Chat"])
+
+
+@app.on_event("startup")
+async def startup_event():
+    """Pre-warm the portfolio cache when the server starts."""
+    logger.info("Server starting — warming portfolio cache from vamshi.site...")
+    await warm_cache()
 
 
 @app.get("/", tags=["Health"])
