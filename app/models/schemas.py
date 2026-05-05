@@ -1,5 +1,5 @@
-from pydantic import BaseModel, Field
-from typing import Optional, List
+from pydantic import BaseModel, Field, field_validator, model_validator
+from typing import Optional, List, Union
 from enum import Enum
 
 
@@ -16,18 +16,43 @@ class Message(BaseModel):
 
 class ChatRequest(BaseModel):
     message: str = Field(..., min_length=1, max_length=4000, description="User's message")
-    conversation_history: Optional[List[Message]] = Field(
-        default=[], description="Previous conversation turns for context"
+    conversation_history: Optional[List[Union[Message, str]]] = Field(
+        default=[], description="Previous conversation turns. Each item can be a Message object {role, content} or a plain string (treated as user message)."
     )
     system_prompt: Optional[str] = Field(
         default=None, description="Optional system prompt override"
     )
 
+    @field_validator("conversation_history", mode="before")
+    @classmethod
+    def normalize_history(cls, v):
+        """Accept plain strings, dicts, or Message objects in conversation_history."""
+        if not v:
+            return []
+        normalized = []
+        for i, item in enumerate(v):
+            if isinstance(item, str):
+                # Plain string → treat as user message
+                normalized.append({"role": "user", "content": item})
+            elif isinstance(item, dict):
+                # Dict without role → infer role (even=user, odd=assistant)
+                if "role" not in item:
+                    item["role"] = "user" if i % 2 == 0 else "assistant"
+                if "content" not in item:
+                    item["content"] = str(item)
+                normalized.append(item)
+            else:
+                normalized.append(item)
+        return normalized
+
     class Config:
         json_schema_extra = {
             "example": {
-                "message": "Tell me about your projects",
-                "conversation_history": [],
+                "message": "which is the best project he did?",
+                "conversation_history": [
+                    {"role": "user", "content": "Tell me about your projects"},
+                    {"role": "assistant", "content": "Vamshi has worked on several projects including..."}
+                ],
                 "system_prompt": None,
             }
         }
@@ -42,9 +67,9 @@ class ChatResponse(BaseModel):
     class Config:
         json_schema_extra = {
             "example": {
-                "reply": "I have worked on several exciting projects...",
-                "provider": "gemini",
-                "model": "gemini-1.5-flash",
+                "reply": "Vamshi's best project is Blue Book Services APIs...",
+                "provider": "groq",
+                "model": "llama-3.3-70b-versatile",
                 "success": True,
             }
         }
