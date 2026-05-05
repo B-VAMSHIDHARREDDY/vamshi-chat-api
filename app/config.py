@@ -17,6 +17,9 @@ class Settings(BaseSettings):
     HUGGINGFACE_API_KEY: Optional[str] = "YOUR_HUGGINGFACE_API_KEY_HERE"
     HUGGINGFACE_MODEL: str = "mistralai/Mixtral-8x7B-Instruct-v0.1"
 
+    # --- Groq (free, fast fallback) ---
+    GROQ_API_KEY: Optional[str] = "YOUR_GROQ_API_KEY_HERE"
+
     # --- General ---
     MAX_TOKENS: int = 512
     TEMPERATURE: float = 0.7

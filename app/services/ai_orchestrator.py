@@ -2,6 +2,7 @@ import logging
 from typing import List, Dict, Tuple
 from app.services.gemini_service import call_gemini
 from app.services.openai_service import call_openai
+from app.services.groq_service import call_groq
 from app.services.huggingface_service import call_huggingface
 from app.config import get_settings
 
@@ -15,61 +16,35 @@ async def get_ai_response(
     system_prompt: str,
 ) -> Tuple[str, str, str]:
     """
-    Orchestrates AI calls with a fallback chain:
-      1. Gemini AI  (primary)
-      2. OpenAI ChatGPT  (fallback on quota/error)
-      3. HuggingFace  (free fallback)
-
-    Returns: (reply_text, provider_name, model_name)
+    Fallback chain:
+      1. Gemini AI   (primary)
+      2. OpenAI      (fallback 1)
+      3. Groq        (fallback 2 — FREE, fast)
+      4. HuggingFace (fallback 3 — FREE)
     """
     providers = [
-        {
-            "name": "gemini",
-            "model": settings.GEMINI_MODEL,
-            "fn": call_gemini,
-        },
-        {
-            "name": "openai",
-            "model": settings.OPENAI_MODEL,
-            "fn": call_openai,
-        },
-        {
-            "name": "huggingface",
-            "model": settings.HUGGINGFACE_MODEL,
-            "fn": call_huggingface,
-        },
+        {"name": "gemini",       "model": settings.GEMINI_MODEL,       "fn": call_gemini},
+        {"name": "openai",       "model": settings.OPENAI_MODEL,        "fn": call_openai},
+        {"name": "groq",         "model": "llama-3.3-70b-versatile",    "fn": call_groq},
+        {"name": "huggingface",  "model": settings.HUGGINGFACE_MODEL,   "fn": call_huggingface},
     ]
 
     last_error: Exception = RuntimeError("No AI providers available")
 
     for provider in providers:
         name = provider["name"]
+        fn   = provider["fn"]
         model = provider["model"]
-        fn = provider["fn"]
-
         try:
-            logger.info(f"Attempting AI call via {name} ({model})")
-            reply = await fn(
-                user_message=user_message,
-                history=history,
-                system_prompt=system_prompt,
-            )
-            logger.info(f"Successfully got response from {name}")
+            logger.info(f"Trying {name}...")
+            reply = await fn(user_message=user_message, history=history, system_prompt=system_prompt)
+            logger.info(f"✅ Response from {name}")
             return reply, name, model
-
         except ValueError as e:
-            # Quota / rate-limit — try next provider
-            logger.warning(f"{name} quota exceeded: {e}. Falling back...")
+            logger.warning(f"{name} quota/rate-limit: {e} — trying next...")
             last_error = e
-            continue
-
         except Exception as e:
-            # Any other error — log and try next provider
-            logger.error(f"{name} failed with error: {e}. Falling back...")
+            logger.error(f"{name} error: {e} — trying next...")
             last_error = e
-            continue
 
-    # All providers failed
-    raise RuntimeError(
-        f"All AI providers failed. Last error: {last_error}"
-    )
+    raise RuntimeError(f"All AI providers failed. Last error: {last_error}")

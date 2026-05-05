@@ -9,6 +9,40 @@ settings = get_settings()
 
 router = APIRouter()
 
+GROQ_MODELS_TO_TRY = ["llama-3.3-70b-versatile", "llama-3.1-8b-instant", "gemma2-9b-it"]
+
+async def _test_groq() -> dict:
+    from app.config import get_settings
+    s = get_settings()
+    if not s.GROQ_API_KEY or "YOUR_" in s.GROQ_API_KEY:
+        return {"status": "error", "http_code": 0, "error": "GROQ_API_KEY not set"}
+    headers = {"Authorization": f"Bearer {s.GROQ_API_KEY}", "Content-Type": "application/json"}
+    tried = []
+    async with httpx.AsyncClient(timeout=15.0) as client:
+        for model in GROQ_MODELS_TO_TRY:
+            payload = {"model": model, "messages": [{"role": "user", "content": "Say OK"}], "max_tokens": 10}
+            try:
+                r = await client.post("https://api.groq.com/openai/v1/chat/completions", json=payload, headers=headers)
+                tried.append(f"{model}={r.status_code}")
+                if r.status_code == 200:
+                    text = r.json()["choices"][0]["message"]["content"].strip()
+                    return {"status": "ok", "http_code": 200, "working_model": model, "response": text, "tried": tried}
+                if r.status_code == 401:
+                    return {"status": "error", "http_code": 401, "error": "Invalid Groq API key", "tried": tried}
+                if r.status_code == 429:
+                    tried.append("rate_limited"); continue
+            except Exception as e:
+                tried.append(f"{model}=exception:{e}")
+    return {"status": "error", "http_code": 429, "error": "Groq rate limited or all models failed", "tried": tried}
+
+def _groq_fix(r):
+    if r["status"] == "ok": return "✅ Groq is working."
+    if r.get("http_code") == 0: return "❌ GROQ_API_KEY not set. Get free key at https://console.groq.com"
+    if r.get("http_code") == 401: return "❌ Invalid key. Check GROQ_API_KEY in Render env vars."
+    return "⚠️ Rate limited. Groq free tier has per-minute limits — retry shortly."
+
+
+
 # Try both v1 and v1beta, and multiple model names
 GEMINI_MODELS_TO_TRY = [
     ("v1", "gemini-2.0-flash"),
@@ -209,17 +243,18 @@ def _hf_fix(r):
 
 @router.get("/diagnostics/all", summary="Test ALL AI providers at once", tags=["Diagnostics"])
 async def test_all():
-    gemini, openai, hf = await asyncio.gather(_test_gemini(), _test_openai(), _test_huggingface())
+    gemini, openai, groq, hf = await asyncio.gather(_test_gemini(), _test_openai(), _test_groq(), _test_huggingface())
     providers = [
         {"provider": "Gemini AI", "api_key_hint": _key_hint(settings.GEMINI_API_KEY), **gemini, "fix": _gemini_fix(gemini)},
         {"provider": "OpenAI ChatGPT", "api_key_hint": _key_hint(settings.OPENAI_API_KEY), **openai, "fix": _openai_fix(openai)},
+        {"provider": "Groq (Free)", "api_key_hint": _key_hint(settings.GROQ_API_KEY or ""), **groq, "fix": _groq_fix(groq)},
         {"provider": "HuggingFace", "api_key_hint": _key_hint(settings.HUGGINGFACE_API_KEY), **hf, "fix": _hf_fix(hf)},
     ]
     working = [p for p in providers if p["status"] in ("ok", "loading")]
     return {
         "overall_status": "healthy" if working else "all_providers_failing",
         "working_providers": len(working),
-        "total_providers": 3,
+        "total_providers": 4,
         "chat_will_work": len(working) > 0,
         "providers": providers,
     }
@@ -251,3 +286,10 @@ async def test_huggingface():
     result = await _test_huggingface()
     return {"provider": "HuggingFace", "api_key_hint": _key_hint(settings.HUGGINGFACE_API_KEY),
             **result, "fix": _hf_fix(result)}
+
+
+@router.get("/diagnostics/groq", summary="Test Groq AI (Free)", tags=["Diagnostics"])
+async def test_groq():
+    result = await _test_groq()
+    return {"provider": "Groq", "api_key_hint": _key_hint(settings.GROQ_API_KEY or ""),
+            **result, "fix": _groq_fix(result)}
