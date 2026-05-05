@@ -11,8 +11,8 @@ router = APIRouter()
 
 async def _test_gemini() -> dict:
     url = (
-        f"https://generativelanguage.googleapis.com/v1beta/models/"
-        f"{settings.GEMINI_MODEL}:generateContent?key={settings.GEMINI_API_KEY}"
+        "https://generativelanguage.googleapis.com/v1beta/models/"
+        f"gemini-1.5-flash-latest:generateContent?key={settings.GEMINI_API_KEY}"
     )
     payload = {
         "contents": [{"role": "user", "parts": [{"text": "Say OK"}]}],

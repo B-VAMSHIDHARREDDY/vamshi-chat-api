@@ -7,11 +7,11 @@ from typing import Optional
 class Settings(BaseSettings):
     # --- Gemini AI ---
     GEMINI_API_KEY: str = "YOUR_GEMINI_API_KEY_HERE"
-    GEMINI_MODEL: str = "gemini-1.5-flash"
+    GEMINI_MODEL: str = "gemini-1.5-flash-latest"
 
     # --- OpenAI / ChatGPT ---
     OPENAI_API_KEY: str = "YOUR_OPENAI_API_KEY_HERE"
-    OPENAI_MODEL: str = "gpt-3.5-turbo"
+    OPENAI_MODEL: str = "gpt-4o-mini"
 
     # --- HuggingFace (free fallback) ---
     HUGGINGFACE_API_KEY: Optional[str] = "YOUR_HUGGINGFACE_API_KEY_HERE"
