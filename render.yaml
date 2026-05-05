@@ -2,6 +2,7 @@ services:
   - type: web
     name: vamshi-chat-api
     runtime: python
+    pythonVersion: "3.12.3"
     buildCommand: pip install -r requirements.txt
     startCommand: uvicorn app.main:app --host 0.0.0.0 --port $PORT
     plan: free
