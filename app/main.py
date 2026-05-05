@@ -1,8 +1,8 @@
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import JSONResponse
+from contextlib import asynccontextmanager
 from app.routers import chat
-from app.services.scraper_service import warm_cache
 import logging
 
 logging.basicConfig(
@@ -11,12 +11,28 @@ logging.basicConfig(
 )
 logger = logging.getLogger(__name__)
 
+
+@asynccontextmanager
+async def lifespan(app: FastAPI):
+    # Startup — warm portfolio cache (non-fatal if it fails)
+    try:
+        from app.services.scraper_service import warm_cache
+        logger.info("Warming portfolio cache from vamshi.site...")
+        await warm_cache()
+        logger.info("Portfolio cache ready.")
+    except Exception as e:
+        logger.warning(f"Portfolio cache warm-up failed (non-fatal): {e}")
+    yield
+    # Shutdown — nothing to clean up
+
+
 app = FastAPI(
     title="Vamshi Portfolio Chat API",
-    description="AI-powered chat API for vamshi.site — powered by Gemini AI with ChatGPT fallback.",
+    description="AI-powered chat API for vamshi.site — Gemini AI with ChatGPT fallback.",
     version="1.0.0",
     docs_url="/docs",
     redoc_url="/redoc",
+    lifespan=lifespan,
 )
 
 app.add_middleware(
@@ -34,13 +50,6 @@ app.add_middleware(
 )
 
 app.include_router(chat.router, prefix="/api/v1", tags=["Chat"])
-
-
-@app.on_event("startup")
-async def startup_event():
-    """Pre-warm the portfolio cache when the server starts."""
-    logger.info("Server starting — warming portfolio cache from vamshi.site...")
-    await warm_cache()
 
 
 @app.get("/", tags=["Health"])
