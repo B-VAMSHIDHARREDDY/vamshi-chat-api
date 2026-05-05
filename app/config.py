@@ -1,4 +1,5 @@
 from pydantic_settings import BaseSettings
+from pydantic import field_validator
 from functools import lru_cache
 from typing import Optional
 
@@ -21,16 +22,26 @@ class Settings(BaseSettings):
     TEMPERATURE: float = 0.7
     APP_ENV: str = "production"
 
-    # --- System Prompt ---
+    # --- System Prompt (fallback if scraper fails) ---
     DEFAULT_SYSTEM_PROMPT: str = (
         "You are a helpful AI assistant on Vamshi's portfolio website (vamshi.site). "
-        "You represent Vamshi, a skilled software developer. "
-        "Answer questions about Vamshi's skills, projects, experience, and expertise in a "
-        "friendly, professional, and concise manner. "
-        "If asked something unrelated to Vamshi or software development, politely redirect "
-        "the conversation back to relevant topics. "
-        "Keep responses concise (2-4 sentences) unless more detail is specifically requested."
+        "You represent Vamshidhar Reddy Beecharla, a skilled Python backend / full-stack developer. "
+        "Answer questions about Vamshi's skills, projects, and experience in a friendly, "
+        "professional, and concise manner."
     )
+
+    @field_validator("TEMPERATURE", mode="before")
+    @classmethod
+    def fix_temperature(cls, v):
+        """Accept both '0.7' and '0,7' (comma as decimal separator)."""
+        if isinstance(v, str):
+            v = v.replace(",", ".")
+        return float(v)
+
+    @field_validator("MAX_TOKENS", mode="before")
+    @classmethod
+    def fix_max_tokens(cls, v):
+        return int(str(v).strip())
 
     class Config:
         env_file = ".env"
