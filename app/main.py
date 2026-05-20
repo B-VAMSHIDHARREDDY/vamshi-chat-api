@@ -2,7 +2,7 @@ from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import JSONResponse
 from contextlib import asynccontextmanager
-from app.routers import chat, diagnostics
+from app.routers import chat, diagnostics, voice
 import logging
 
 logging.basicConfig(
@@ -51,6 +51,7 @@ app.add_middleware(
 
 app.include_router(chat.router, prefix="/api/v1", tags=["Chat"])
 app.include_router(diagnostics.router, prefix="/api/v1", tags=["Diagnostics"])
+app.include_router(voice.router, prefix="/api/v1", tags=["Voice Assistant"])
 
 
 @app.get("/", tags=["Health"])
